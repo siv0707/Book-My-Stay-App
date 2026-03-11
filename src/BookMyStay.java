@@ -1,44 +1,81 @@
 import java.util.*;
+import java.util.concurrent.*;
 
-// Service to manage booking cancellations and inventory rollback
-class CancellationService {
-    private Map<String, Integer> inventory;
-    private Stack<String> rollbackHistory; // Tracks released Reservation IDs (LIFO)
+// Represents a Request for a booking
+class BookingRequest {
+    String guestName;
+    String roomType;
 
-    public CancellationService() {
-        this.inventory = new HashMap<>();
-        this.rollbackHistory = new Stack<>();
+    public BookingRequest(String guestName, String roomType) {
+        this.guestName = guestName;
+        this.roomType = roomType;
+    }
+}
 
-        // Initializing inventory for the use case
+// Processor that handles inventory updates in a thread-safe manner
+class ConcurrentBookingProcessor {
+    private final Map<String, Integer> inventory = new ConcurrentHashMap<>();
+    private final Map<String, Integer> roomCounters = new ConcurrentHashMap<>();
+
+    public ConcurrentBookingProcessor() {
         inventory.put("Single", 5);
+        inventory.put("Double", 3);
+        inventory.put("Suite", 2);
+
+        roomCounters.put("Single", 1);
+        roomCounters.put("Double", 1);
+        roomCounters.put("Suite", 1);
     }
 
-    // Performs the cancellation and rollback logic
-    public void cancelBooking(String reservationId, String roomType) {
-        System.out.println("Booking Cancellation");
+    // Synchronized method ensures only one thread modifies inventory at a time
+    public synchronized void processBooking(BookingRequest request) {
+        int available = inventory.getOrDefault(request.roomType, 0);
 
-        // 1. Logic: In a real system, we'd verify the ID exists.
-        // 2. State Reversal: Push to rollback stack
-        rollbackHistory.push(reservationId);
+        if (available > 0) {
+            // Generate Room ID
+            int currentId = roomCounters.get(request.roomType);
+            String roomId = request.roomType + "-" + currentId;
 
-        // 3. Inventory Restoration: Increment the count
-        int currentCount = inventory.getOrDefault(roomType, 0);
-        inventory.put(roomType, currentCount + 1);
+            // Update State
+            inventory.put(request.roomType, available - 1);
+            roomCounters.put(request.roomType, currentId + 1);
 
-        // Display results matching the requirement image
-        System.out.println("Booking cancelled successfully. Inventory restored for room type: " + roomType);
-        System.out.println("\nRollback History (Most Recent First):");
-        System.out.println("Released Reservation ID: " + rollbackHistory.peek());
-        System.out.println("\nUpdated " + roomType + " Room Availability: " + inventory.get(roomType));
+            System.out.println("Booking confirmed for Guest: " + request.guestName + ", Room ID: " + roomId);
+        } else {
+            System.out.println("Booking failed for Guest: " + request.guestName + ". No " + request.roomType + " rooms available.");
+        }
+    }
+
+    public void displayRemainingInventory() {
+        System.out.println("\nRemaining Inventory:");
+        inventory.forEach((type, count) -> System.out.println(type + ": " + count));
     }
 }
 
 public class BookMyStay {
-    public static void main(String[] args) {
-        CancellationService service = new CancellationService();
+    public static void main(String[] args) throws InterruptedException {
+        ConcurrentBookingProcessor processor = new ConcurrentBookingProcessor();
 
-        // Guest initiates a cancellation for "Single-1"
-        // In Use Case 10, we simulate the reversal of a previously confirmed booking
-        service.cancelBooking("Single-1", "Single");
+        // Shared queue of requests
+        List<BookingRequest> requests = Arrays.asList(
+                new BookingRequest("Abhi", "Single"),
+                new BookingRequest("Vanmathi", "Double"),
+                new BookingRequest("Kural", "Suite"),
+                new BookingRequest("Subha", "Single")
+        );
+
+        System.out.println("Concurrent Booking Simulation");
+
+        // Using an ExecutorService to simulate multiple threads (Multiple Guests)
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+
+        for (BookingRequest req : requests) {
+            executor.execute(() -> processor.processBooking(req));
+        }
+
+        executor.shutdown();
+        executor.awaitTermination(5, TimeUnit.SECONDS);
+
+        processor.displayRemainingInventory();
     }
 }
