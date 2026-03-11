@@ -1,91 +1,70 @@
 import java.util.*;
 
-// Booking Request class
-class BookingRequest {
-    String customerName;
-    String roomType;
+// Class representing an individual optional offering
+class Service {
+    private String name;
+    private double price;
 
-    BookingRequest(String customerName, String roomType) {
-        this.customerName = customerName;
-        this.roomType = roomType;
+    public Service(String name, double price) {
+        this.name = name;
+        this.price = price;
+    }
+
+    public double getPrice() {
+        return price;
+    }
+
+    public String getName() {
+        return name;
     }
 }
 
-public class BookMyStay {
+// Manages the association between reservations and selected services
+class AddOnServiceManager {
+    // Mapping Reservation ID to a List of Services (One-to-Many)
+    private Map<String, List<Service>> reservationAddOns;
 
-    // Queue for booking requests (FIFO)
-    static Queue<BookingRequest> requestQueue = new LinkedList<>();
-
-    // Inventory of rooms
-    static Map<String, Integer> inventory = new HashMap<>();
-
-    // Map room type -> allocated room IDs
-    static Map<String, Set<String>> allocatedRooms = new HashMap<>();
-
-    // Counter for unique room IDs
-    static int roomCounter = 1;
-
-    public static void main(String[] args) {
-
-        // Initialize inventory
-        inventory.put("Single", 2);
-        inventory.put("Double", 2);
-        inventory.put("Suite", 1);
-
-        // Initialize allocation sets
-        allocatedRooms.put("Single", new HashSet<>());
-        allocatedRooms.put("Double", new HashSet<>());
-        allocatedRooms.put("Suite", new HashSet<>());
-
-        // Add booking requests to queue
-        requestQueue.add(new BookingRequest("Alice", "Single"));
-        requestQueue.add(new BookingRequest("Bob", "Double"));
-        requestQueue.add(new BookingRequest("Charlie", "Single"));
-        requestQueue.add(new BookingRequest("David", "Suite"));
-        requestQueue.add(new BookingRequest("Eva", "Suite"));
-
-        processBookings();
+    public AddOnServiceManager() {
+        this.reservationAddOns = new HashMap<>();
     }
 
-    // Process booking requests
-    public static void processBookings() {
+    // Add a service to a specific reservation
+    public void addServiceToReservation(String reservationId, Service service) {
+        reservationAddOns.computeIfAbsent(reservationId, k -> new ArrayList<>()).add(service);
+    }
 
-        while (!requestQueue.isEmpty()) {
+    // Calculate total cost for a reservation's add-ons
+    public double calculateTotalAddOnCost(String reservationId) {
+        List<Service> services = reservationAddOns.get(reservationId);
+        if (services == null) return 0.0;
 
-            BookingRequest request = requestQueue.poll();
-
-            System.out.println("\nProcessing Booking for: " + request.customerName);
-            System.out.println("Requested Room Type: " + request.roomType);
-
-            int available = inventory.getOrDefault(request.roomType, 0);
-
-            if (available > 0) {
-
-                // Generate unique room ID
-                String roomID = request.roomType.substring(0,1).toUpperCase() + roomCounter++;
-
-                Set<String> roomSet = allocatedRooms.get(request.roomType);
-
-                if (!roomSet.contains(roomID)) {
-
-                    roomSet.add(roomID);
-
-                    // Update inventory
-                    inventory.put(request.roomType, available - 1);
-
-                    System.out.println("Reservation Confirmed");
-                    System.out.println("Allocated Room ID: " + roomID);
-                }
-
-            } else {
-                System.out.println("Reservation Failed: No rooms available");
-            }
+        double total = 0;
+        for (Service s : services) {
+            total += s.getPrice();
         }
+        return total;
+    }
+}
 
-        // Final report
-        System.out.println("\nFinal Room Allocation:");
-        for (String type : allocatedRooms.keySet()) {
-            System.out.println(type + " -> " + allocatedRooms.get(type));
-        }
+// REMOVED 'public' keyword here so it compiles regardless of filename
+class UseCase7AddOnServiceSelection {
+    public static void main(String[] args) {
+        AddOnServiceManager manager = new AddOnServiceManager();
+        String resId = "Single-1";
+
+        // Defining sample services
+        Service breakfast = new Service("Breakfast Buffet", 500.0);
+        Service spa = new Service("Spa Treatment", 1000.0);
+
+        // Guest selects services
+        manager.addServiceToReservation(resId, breakfast);
+        manager.addServiceToReservation(resId, spa);
+
+        // Calculate and Display Output
+        double totalCost = manager.calculateTotalAddOnCost(resId);
+
+        System.out.println("Add-On Service Selection");
+        System.out.println("Reservation ID: " + resId);
+        System.out.println("Total Add-On Cost: " + totalCost);
     }
 }
