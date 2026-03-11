@@ -1,61 +1,51 @@
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
-// Represents an individual confirmed reservation
-class Booking {
-    private String guestName;
-    private String roomType;
-
-    public Booking(String guestName, String roomType) {
-        this.guestName = guestName;
-        this.roomType = roomType;
-    }
-
-    @Override
-    public String toString() {
-        return "Guest: " + guestName + ", Room Type: " + roomType;
+// Custom Exception for specific booking errors
+class InvalidBookingException extends Exception {
+    public InvalidBookingException(String message) {
+        super(message);
     }
 }
 
-// Service to manage the list of past bookings and generate summaries
-class BookingHistoryService {
-    // List is ideal here because it preserves the order of confirmation
-    private List<Booking> history = new ArrayList<>();
+// Validator to ensure inputs meet system requirements
+class BookingValidator {
+    private static final List<String> VALID_ROOMS = Arrays.asList("Single", "Double", "Suite");
 
-    // Adds a booking to the history list
-    public void recordBooking(Booking booking) {
-        history.add(booking);
-    }
-
-    // Prints the historical report
-    public void generateReport() {
-        System.out.println("--- Booking History Report ---");
-        if (history.isEmpty()) {
-            System.out.println("No history found.");
-        } else {
-            for (Booking b : history) {
-                System.out.println(b.toString());
-            }
+    public void validate(String roomType) throws InvalidBookingException {
+        // Requirement: It is case sensitive (Single/Double/Suite)
+        if (!VALID_ROOMS.contains(roomType)) {
+            throw new InvalidBookingException("Invalid room type selected.");
         }
-        System.out.println("------------------------------");
     }
 }
 
-// Main class name matches your filename BookMyShow.java
 public class BookMyStay {
     public static void main(String[] args) {
-        BookingHistoryService historyService = new BookingHistoryService();
+        Scanner scanner = new Scanner(System.in);
+        BookingValidator validator = new BookingValidator();
 
-        // Step 1: Confirm and record bookings
-        historyService.recordBooking(new Booking("Abhi", "Single"));
-        historyService.recordBooking(new Booking("Subha", "Double"));
-        historyService.recordBooking(new Booking("Vanmathi", "Suite"));
+        System.out.println("Booking Validation");
 
-        // Step 2: Display Output Header
-        System.out.println("Book My Stay App - Operational Visibility");
-        System.out.println("Booking History and Reporting\n");
+        // Input gathering
+        System.out.print("Enter guest name: ");
+        String guestName = scanner.nextLine();
 
-        // Step 3: Admin generates the report from stored data
-        historyService.generateReport();
+        System.out.print("Enter room type (Single/Double/Suite): ");
+        String roomType = scanner.nextLine();
+
+        try {
+            // Validate the input
+            validator.validate(roomType);
+
+            // If validation passes
+            System.out.println("Booking successful for " + guestName + " in a " + roomType + " room.");
+
+        } catch (InvalidBookingException e) {
+            // Requirement: Display meaningful failure message
+            System.out.println("Booking failed: " + e.getMessage());
+            System.out.println("\nNote: It is case sensitive");
+        } finally {
+            scanner.close();
+        }
     }
 }
