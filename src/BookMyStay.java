@@ -1,81 +1,69 @@
+import java.io.*;
 import java.util.*;
-import java.util.concurrent.*;
 
-// Represents a Request for a booking
-class BookingRequest {
-    String guestName;
-    String roomType;
+// Service to handle saving and loading inventory to/from a file
+class PersistenceService {
+    private static final String FILE_NAME = "inventory.txt";
 
-    public BookingRequest(String guestName, String roomType) {
-        this.guestName = guestName;
-        this.roomType = roomType;
-    }
-}
-
-// Processor that handles inventory updates in a thread-safe manner
-class ConcurrentBookingProcessor {
-    private final Map<String, Integer> inventory = new ConcurrentHashMap<>();
-    private final Map<String, Integer> roomCounters = new ConcurrentHashMap<>();
-
-    public ConcurrentBookingProcessor() {
-        inventory.put("Single", 5);
-        inventory.put("Double", 3);
-        inventory.put("Suite", 2);
-
-        roomCounters.put("Single", 1);
-        roomCounters.put("Double", 1);
-        roomCounters.put("Suite", 1);
-    }
-
-    // Synchronized method ensures only one thread modifies inventory at a time
-    public synchronized void processBooking(BookingRequest request) {
-        int available = inventory.getOrDefault(request.roomType, 0);
-
-        if (available > 0) {
-            // Generate Room ID
-            int currentId = roomCounters.get(request.roomType);
-            String roomId = request.roomType + "-" + currentId;
-
-            // Update State
-            inventory.put(request.roomType, available - 1);
-            roomCounters.put(request.roomType, currentId + 1);
-
-            System.out.println("Booking confirmed for Guest: " + request.guestName + ", Room ID: " + roomId);
-        } else {
-            System.out.println("Booking failed for Guest: " + request.guestName + ". No " + request.roomType + " rooms available.");
+    // Saves the current inventory map to a file
+    public void saveInventory(Map<String, Integer> inventory) {
+        try (PrintWriter writer = new PrintWriter(new FileWriter(FILE_NAME))) {
+            for (Map.Entry<String, Integer> entry : inventory.entrySet()) {
+                writer.println(entry.getKey() + ":" + entry.getValue());
+            }
+            System.out.println("Inventory saved successfully.");
+        } catch (IOException e) {
+            System.out.println("Error saving inventory: " + e.getMessage());
         }
     }
 
-    public void displayRemainingInventory() {
-        System.out.println("\nRemaining Inventory:");
-        inventory.forEach((type, count) -> System.out.println(type + ": " + count));
+    // Loads inventory from a file, or returns empty map if file doesn't exist
+    public Map<String, Integer> loadInventory() {
+        Map<String, Integer> inventory = new HashMap<>();
+        File file = new File(FILE_NAME);
+
+        if (!file.exists()) {
+            System.out.println("No valid inventory data found. Starting fresh.");
+            return inventory;
+        }
+
+        try (Scanner scanner = new Scanner(file)) {
+            while (scanner.hasNextLine()) {
+                String[] parts = scanner.nextLine().split(":");
+                if (parts.length == 2) {
+                    inventory.put(parts[0], Integer.parseInt(parts[1]));
+                }
+            }
+        } catch (IOException | NumberFormatException e) {
+            System.out.println("Error loading inventory. Starting fresh.");
+        }
+        return inventory;
     }
 }
 
 public class BookMyStay {
-    public static void main(String[] args) throws InterruptedException {
-        ConcurrentBookingProcessor processor = new ConcurrentBookingProcessor();
+    public static void main(String[] args) {
+        PersistenceService persistence = new PersistenceService();
 
-        // Shared queue of requests
-        List<BookingRequest> requests = Arrays.asList(
-                new BookingRequest("Abhi", "Single"),
-                new BookingRequest("Vanmathi", "Double"),
-                new BookingRequest("Kural", "Suite"),
-                new BookingRequest("Subha", "Single")
-        );
+        System.out.println("System Recovery");
 
-        System.out.println("Concurrent Booking Simulation");
+        // 1. Attempt to Load Data (Deserialization)
+        Map<String, Integer> inventory = persistence.loadInventory();
 
-        // Using an ExecutorService to simulate multiple threads (Multiple Guests)
-        ExecutorService executor = Executors.newFixedThreadPool(4);
-
-        for (BookingRequest req : requests) {
-            executor.execute(() -> processor.processBooking(req));
+        // 2. Failure Tolerance: If map is empty, initialize default values
+        if (inventory.isEmpty()) {
+            inventory.put("Single", 5);
+            inventory.put("Double", 3);
+            inventory.put("Suite", 2);
         }
 
-        executor.shutdown();
-        executor.awaitTermination(5, TimeUnit.SECONDS);
+        // 3. Display Current State (Matches image_d51fb9.png)
+        System.out.println("\nCurrent Inventory:");
+        System.out.println("Single: " + inventory.get("Single"));
+        System.out.println("Double: " + inventory.get("Double"));
+        System.out.println("Suite: " + inventory.get("Suite"));
 
-        processor.displayRemainingInventory();
+        // 4. Save Data (Serialization for next restart)
+        persistence.saveInventory(inventory);
     }
 }
